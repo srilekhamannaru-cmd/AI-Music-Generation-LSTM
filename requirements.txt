@@ -1,0 +1,5 @@
+numpy
+torch
+music21
+pretty_midi
+streamlit

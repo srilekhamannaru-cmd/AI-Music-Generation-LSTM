@@ -1,0 +1,28 @@
+# Python cache files
+__pycache__/
+*.py[cod]
+
+# Virtual environment
+venv/
+.venv/
+
+# Jupyter files
+.ipynb_checkpoints/
+
+# IDE files
+.vscode/
+
+# Generated music files
+outputs/
+
+# Large training dataset
+data/midi/
+data/sequences.npy
+
+# Model checkpoints
+models/*.pth
+
+# Environment variables
+.env
+.env.*
+!.env.example
