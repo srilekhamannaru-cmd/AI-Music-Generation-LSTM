@@ -19,8 +19,6 @@ outputs/
 data/midi/
 data/sequences.npy
 
-# Model checkpoints
-models/*.pth
 
 # Environment variables
 .env

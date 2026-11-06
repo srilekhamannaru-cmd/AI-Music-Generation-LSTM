@@ -7,9 +7,10 @@ import torch.nn as nn
 import pretty_midi
 import streamlit as st
 
-# -----------------------------
-# Page Configuration
-# -----------------------------
+
+# -----------------------------------
+# PAGE CONFIGURATION
+# -----------------------------------
 
 st.set_page_config(
     page_title="AI Music Generator",
@@ -17,9 +18,10 @@ st.set_page_config(
     layout="centered"
 )
 
-# -----------------------------
-# LSTM Model
-# -----------------------------
+
+# -----------------------------------
+# LSTM MODEL
+# -----------------------------------
 
 class MusicLSTM(nn.Module):
 
@@ -39,14 +41,17 @@ class MusicLSTM(nn.Module):
         self.fc = nn.Linear(128, vocab_size)
 
     def forward(self, x):
+
         x = self.embedding(x)
+
         output, _ = self.lstm(x)
+
         return self.fc(output[:, -1, :])
 
 
-# -----------------------------
-# Load Trained Model
-# -----------------------------
+# -----------------------------------
+# LOAD TRAINED MODEL
+# -----------------------------------
 
 @st.cache_resource
 def load_music_model():
@@ -68,7 +73,10 @@ def load_music_model():
 
     model.eval()
 
+    # Load note mapping
+
     with open("data/note_mapping.json", "r") as file:
+
         note_mapping = json.load(file)
 
     int_to_note = {
@@ -76,28 +84,37 @@ def load_music_model():
         for pitch, index in note_mapping.items()
     }
 
-    sequences = np.load("data/sequences.npy")
+    # Load small seed sequence
 
-    return model, int_to_note, sequences
+    with open("data/seed_sequence.json", "r") as file:
+
+        seed_sequence = json.load(file)
+
+    return model, int_to_note, seed_sequence
 
 
-# -----------------------------
-# Generate Music
-# -----------------------------
+# -----------------------------------
+# GENERATE MUSIC
+# -----------------------------------
 
 def generate_music(
     model,
     int_to_note,
-    sequences,
+    seed_sequence,
     num_notes,
     temperature
 ):
 
     sequence_length = 50
 
-    seed = sequences[0][:sequence_length]
+    generated_sequence = list(seed_sequence)
 
-    generated_sequence = list(seed)
+    if len(generated_sequence) != sequence_length:
+        raise ValueError("Seed sequence must contain exactly 50 notes.")
+
+    device = torch.device("cpu")
+
+    model.eval()
 
     with torch.no_grad():
 
@@ -106,7 +123,7 @@ def generate_music(
             input_sequence = torch.tensor(
                 [generated_sequence[-sequence_length:]],
                 dtype=torch.long
-            )
+            ).to(device)
 
             predictions = model(input_sequence)
 
@@ -122,14 +139,16 @@ def generate_music(
 
             generated_sequence.append(next_note)
 
-    # Convert notes into MIDI
+    # Convert generated notes into MIDI
 
     midi = pretty_midi.PrettyMIDI()
 
     instrument = pretty_midi.Instrument(program=0)
 
     start_time = 0.0
+
     note_duration = 0.35
+
     note_interval = 0.4
 
     generated_notes = generated_sequence[sequence_length:]
@@ -160,9 +179,9 @@ def generate_music(
     return midi_path
 
 
-# -----------------------------
-# Convert MIDI Notes to WAV
-# -----------------------------
+# -----------------------------------
+# CONVERT MIDI INTO WAV AUDIO
+# -----------------------------------
 
 def create_audio(midi_path):
 
@@ -182,6 +201,7 @@ def create_audio(midi_path):
         for note in instrument.notes:
 
             start = int(note.start * sample_rate)
+
             end = int(note.end * sample_rate)
 
             length = end - start
@@ -195,7 +215,7 @@ def create_audio(midi_path):
                 note.pitch
             )
 
-            # Create a simple musical tone
+            # Generate musical tone
 
             tone = (
                 np.sin(2 * np.pi * frequency * t)
@@ -203,7 +223,7 @@ def create_audio(midi_path):
                 + 0.1 * np.sin(6 * np.pi * frequency * t)
             )
 
-            # Apply a smooth note envelope
+            # Smooth sound envelope
 
             envelope = np.exp(-4 * t)
 
@@ -211,13 +231,16 @@ def create_audio(midi_path):
 
             end_position = min(end, len(audio))
 
-            audio[start:end_position] += sound[:end_position-start]
+            audio[start:end_position] += sound[
+                :end_position - start
+            ]
 
     # Normalize audio
 
     maximum = np.max(np.abs(audio))
 
     if maximum > 0:
+
         audio = audio / maximum
 
     audio = (audio * 32767).astype(np.int16)
@@ -229,7 +252,9 @@ def create_audio(midi_path):
     with wave.open(wav_path, "wb") as wav_file:
 
         wav_file.setnchannels(1)
+
         wav_file.setsampwidth(2)
+
         wav_file.setframerate(sample_rate)
 
         wav_file.writeframes(audio.tobytes())
@@ -237,9 +262,9 @@ def create_audio(midi_path):
     return wav_path
 
 
-# -----------------------------
-# Streamlit Interface
-# -----------------------------
+# -----------------------------------
+# STREAMLIT APPLICATION
+# -----------------------------------
 
 st.title("🎵 AI Music Generator")
 
@@ -252,6 +277,8 @@ st.divider()
 
 st.subheader("🎹 Generate Your Music")
 
+# Number of notes
+
 num_notes = st.slider(
     "Select the number of notes",
     min_value=50,
@@ -259,6 +286,8 @@ num_notes = st.slider(
     value=100,
     step=50
 )
+
+# Music creativity
 
 temperature = st.slider(
     "Music creativity",
@@ -270,29 +299,43 @@ temperature = st.slider(
 
 st.write(f"Selected notes: **{num_notes}**")
 
-if st.button("🎼 Generate Music", use_container_width=True):
+# Generate button
+
+if st.button(
+    "🎼 Generate Music",
+    use_container_width=True
+):
 
     try:
 
-        with st.spinner("Generating your music..."):
+        with st.spinner("Loading model and generating music..."):
 
-            model, int_to_note, sequences = load_music_model()
+            # Load model
+
+            model, int_to_note, seed_sequence = load_music_model()
+
+            # Generate MIDI
 
             midi_path = generate_music(
                 model,
                 int_to_note,
-                sequences,
+                seed_sequence,
                 num_notes,
                 temperature
             )
+
+            # Convert MIDI to WAV
 
             wav_path = create_audio(midi_path)
 
         st.success("Your AI-generated music is ready! 🎉")
 
+        # Audio playback
+
         st.subheader("🎧 Listen to Your Music")
 
         with open(wav_path, "rb") as audio_file:
+
             audio_data = audio_file.read()
 
         st.audio(
@@ -300,13 +343,16 @@ if st.button("🎼 Generate Music", use_container_width=True):
             format="audio/wav"
         )
 
+        # Download section
+
         st.subheader("⬇️ Download Your Music")
 
         with open(midi_path, "rb") as midi_file:
+
             midi_data = midi_file.read()
 
         st.download_button(
-            "Download MIDI",
+            label="🎹 Download MIDI",
             data=midi_data,
             file_name="generated_music.mid",
             mime="audio/midi",
@@ -314,7 +360,7 @@ if st.button("🎼 Generate Music", use_container_width=True):
         )
 
         st.download_button(
-            "Download WAV Audio",
+            label="🎧 Download WAV Audio",
             data=audio_data,
             file_name="generated_music.wav",
             mime="audio/wav",
@@ -328,6 +374,11 @@ if st.button("🎼 Generate Music", use_container_width=True):
     except Exception as error:
 
         st.error(f"Something went wrong: {error}")
+
+
+# -----------------------------------
+# FOOTER
+# -----------------------------------
 
 st.divider()
 
