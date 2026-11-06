@@ -1,5 +1,13 @@
 # 🎵 AI Music Generation Using LSTM
 
+## 🚀 Live Demo
+
+Try the AI Music Generator here:
+
+🎵 **[Launch AI Music Generation App](https://ai-music-generation-lstm.streamlit.app/)**
+
+Generate original music using an LSTM deep learning model and listen to the results directly in your browser.
+
 ## About the Project
 
 AI Music Generation is a deep learning project that generates new musical sequences using a Long Short-Term Memory (LSTM) neural network.
